@@ -4,4 +4,4 @@ Here, the functions have been adapted to be compatible with python and to ensure
 
 Instructions for implementation are provided as "python_presto_tutorial.ipynb" in the code folder.
 
-If you use this and the original implementation, citing the work will be very much appreciated!! 
+If you use this and the original implementation, citing these works will be very much appreciated!! 
