@@ -75,7 +75,7 @@ def py_presto_wilcoxauc(
     select = True if np.isnan(np.array(y)).any() else False
     y = pd.Categorical(y)
 
-    if select is True:
+    if select:
         idx_use = [i for i in range(len(y)) if not pd.isna(y[i])]
         if len(idx_use) < len(y):
             y = y[idx_use]

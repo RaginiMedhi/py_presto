@@ -22,6 +22,26 @@ from scipy.sparse import csr_matrix, isspmatrix_csr
 from python_presto.rcpp import *
 
 
+def encode_groups(y: np.ndarray) -> Tuple[list, dict]:
+    """
+    Encodes groups
+
+    Arguments:
+    y -- the numpy array of the groups
+
+    Returns:
+    group_labels -- numpy array of encoded groups
+    groups_id -- dictionary of group ids
+    """
+    groups_id = {element: idx for idx, element in enumerate(dict.fromkeys(y))}
+    y = [groups_id[element] for element in y]
+
+    group_labels = [np.nan if x == groups_id[np.nan] else x for x in y]
+    del groups_id[np.nan]
+
+    return group_labels, groups_id
+
+
 def _get_sparse_matrix_vectors(
     data: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -34,7 +54,7 @@ def _get_sparse_matrix_vectors(
     Returns:
     i -- numpy array of row index of non-zero elements
     p -- numpy array of number of non-zero elements
-    x -- numpy array of non-zero elements of X
+    x -- numpy array of non-zero elements of data
 
     """
     data = np.array(data)
@@ -132,7 +152,7 @@ def _rank_matrix_matrix(data: np.ndarray) -> dict:
     data -- numpy array
 
     Returns:
-    dictionary where X is a numpy array and ties is a list
+    dictionary where x is a numpy array and ties is a list
     """
     x = data.T
 
@@ -231,7 +251,7 @@ def nnzero_groups(data: csr_matrix | np.ndarray, y: List, margin: int) -> np.nda
     Arguments:
     data -- csr_matrix or numpy array
     y -- list of encoded group types
-    MARGIN -- 1 or 2
+    margin -- 1 or 2
     """
     if margin == 2 and data.shape[0] != len(y):
         raise ValueError("nrow(data) != length(group labels)")
@@ -252,7 +272,7 @@ def _nnzero_groups_dgcmatrix(data: csr_matrix, y: List, margin: int) -> np.ndarr
     Arguments:
     data -- csr_matrix
     y -- list of encoded group types
-    MARGIN -- 1 or 2
+    margin -- 1 or 2
     """
     data = data.toarray()
 
@@ -276,7 +296,7 @@ def _nnzero_groups_matrix(data: np.ndarray, y: List, margin: int) -> np.ndarray:
     Arguments:
     data -- numpy array
     y -- list of encoded group types
-    MARGIN -- 1 or 2
+    margin -- 1 or 2
     """
     unique_y = np.unique(y)
     ngroups = len(unique_y)
