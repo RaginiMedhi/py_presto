@@ -12,51 +12,46 @@ import numpy as np
 
 
 def cpp_in_place_rank_mean(
-    x: np.ndarray, p: np.ndarray, ncol: int
+    v_temp: np.ndarray, idx_begin: int, idx_end: int
 ) -> Tuple[np.ndarray, List]:
     """
     Arguments:
     x -- numpy array from utils function 'get_sparse_matrix_vectors'
-    p -- numpy array from utils function 'get_sparse_matrix_vectors'
-    ncol -- number of columns of the original sparse matrix
+    p_start -- start index
+    p_end -- end index
 
     Returns:
-    x -- numpy array
     ties -- numpy array
     """
-    x = np.array(x)
-    p = np.array(p)
-    ties = [[] for _ in range(ncol)]
 
-    for i in range(ncol):
-        if p[i + 1] == p[i]:
-            continue
-        idx_begin = p[i]
-        idx_end = p[i + 1] - 1
-        segment = x[idx_begin : idx_end + 1]
+    ties = []
 
-        sorted_indices = np.argsort(segment)
-        sorted_segment = segment[sorted_indices]
+    if idx_begin > idx_end:
+        return ties
 
-        ranks = np.zeros_like(sorted_segment, dtype=float)
-        rank_sum = 0
-        n = 1
+    v_sort = [(v_temp[i], i - idx_begin) for i in range(idx_begin, idx_end + 1)]
+    v_sort.sort()
 
-        for j in range(1, len(sorted_segment)):
-            if sorted_segment[j] != sorted_segment[j - 1]:
-                ranks[sorted_indices[j - n : j]] = (rank_sum / n) + 1
-                rank_sum = j
-                if n > 1:
-                    ties.append(n)
-                n = 1
-            else:
-                rank_sum += j
-                n += 1
+    rank_sum = 0
+    n = 1
+    i = 1
+    while i < len(v_sort):
+        if v_sort[i][0] != v_sort[i - 1][0]:
+            for j in range(n):
+                v_temp[v_sort[i - 1 - j][1] + idx_begin] = (rank_sum / n) + 1
+            rank_sum = i
+            if n > 1:
+                ties.append(n)
+            n = 1
+        else:
+            rank_sum += i
+            n += 1
+        i += 1
 
-        ranks[sorted_indices[len(sorted_segment) - n :]] = (rank_sum / n) + 1
-        x[idx_begin : idx_end + 1] = ranks
+    for j in range(n):
+        v_temp[v_sort[i - 1 - j][1] + idx_begin] = (rank_sum / n) + 1
 
-    return x, ties
+    return ties
 
 
 def cpp_sum_groups_sparse(

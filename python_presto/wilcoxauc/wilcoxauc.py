@@ -45,18 +45,6 @@ def py_presto_wilcoxauc(
     group_types = list(groups_id.keys())
     index = features.copy()
 
-    if isinstance(data, pd.DataFrame):
-        x_int = data.values
-        data = data.to_numpy(dtype="float")
-
-    elif isspmatrix_csr(data):
-        x_int = csr_matrix(data)
-
-    m = get_margin(data, y)
-
-    group_sums = sum_groups(x_int, y, m)
-    group_nnz = nnzero_groups(x_int, y, m)
-
     if groups_use is not None:
         idx_use = [i for i, label in enumerate(y) if label in groups_use]
         y = [y[i] for i in idx_use]
@@ -71,6 +59,12 @@ def py_presto_wilcoxauc(
         raise ValueError(
             "Number of columns of data does not match length of group labels"
         )
+
+    if isspmatrix_csr(data):
+        data = csr_matrix(data)
+
+    elif isinstance(data, pd.DataFrame):
+        data = data.to_numpy(dtype="float")
 
     select = True if np.isnan(np.array(y)).any() else False
     y = pd.Categorical(y)
@@ -94,11 +88,11 @@ def py_presto_wilcoxauc(
     if isspmatrix_csr(data):
         xt = csr_matrix(csr_matrix(data).transpose())
         rank_res = rank_matrix(xt)
-        ranked = np.reshape(rank_res["ranked_data"], (xt.shape[1], xt.shape[0]))
-        Xr = ranked.T
+        Xr = rank_res["ranked_data"]
     elif isinstance(data, np.ndarray):
         rank_res = rank_matrix(data)
         Xr = rank_res["ranked_data"]
+        xt = data.copy()
 
     ustat = compute_ustat(xt, Xr, y, group_size)
     auc = ustat.T / n1n2
@@ -109,6 +103,17 @@ def py_presto_wilcoxauc(
     pval = compute_pval(ustat, ties, length, n1n2)
 
     fdr = np.apply_along_axis(adjust_pvalues, axis=0, arr=pval)
+
+    if isinstance(data, pd.DataFrame):
+        data = data.to_numpy(dtype="float")
+
+    elif isspmatrix_csr(data):
+        data = csr_matrix(data)
+
+    m = get_margin(data, y)
+
+    group_sums = sum_groups(data, y, m)
+    group_nnz = nnzero_groups(data, y, m)
 
     col_sums_nnz = np.sum(group_nnz, axis=0)
     group_pct = group_nnz.T / group_size

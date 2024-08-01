@@ -22,22 +22,24 @@ from scipy.sparse import csr_matrix, isspmatrix_csr
 from python_presto.rcpp import *
 
 
-def encode_groups(y: np.ndarray) -> Tuple[list, dict]:
+def encode_groups(y: pd.Series) -> Tuple[list, dict]:
     """
     Encodes groups
 
     Arguments:
-    y -- the numpy array of the groups
+    y -- the pd.Series of the groups
 
     Returns:
     group_labels -- numpy array of encoded groups
     groups_id -- dictionary of group ids
     """
-    groups_id = {element: idx for idx, element in enumerate(dict.fromkeys(y))}
-    y = [groups_id[element] for element in y]
+    group_labels, _ = pd.factorize(y, use_na_sentinel=True, sort=True)
+    groups_id = dict(zip(group_labels, y.tolist()))
 
-    group_labels = [np.nan if x == groups_id[np.nan] else x for x in y]
-    del groups_id[np.nan]
+    group_labels = [np.nan if x == -1 else x for x in group_labels]
+    del groups_id[-1]
+
+    groups_id = dict(sorted(groups_id.items()))
 
     return group_labels, groups_id
 
@@ -131,17 +133,19 @@ def _rank_sparse_matrix(data: csr_matrix) -> Tuple[np.ndarray, List]:
     """
     data_array = data.toarray()
 
-    _, p, x = _get_sparse_matrix_vectors(data_array)
+    _, p, xr = _get_sparse_matrix_vectors(data_array)
     ncol = data_array.shape[1]
     nrow = data_array.shape[0]
 
-    xr, ties = cpp_in_place_rank_mean(x, p, ncol)
+    ties = [[] for _ in range(ncol)]
 
     for i in range(ncol):
         if p[i + 1] == p[i]:
-            n_zero = nrow - (p[i + 1] - p[i])
-            ties[i].append(n_zero)
-            xr[p[i] : p[i + 1]] += n_zero
+            continue
+        n_zero = nrow - (p[i + 1] - p[i])
+        ties[i] = cpp_in_place_rank_mean(xr, int(p[i]), int(p[i + 1] - 1))
+        ties[i].append(n_zero)
+        xr[p[i] : p[i + 1]] += n_zero
 
     return xr, ties
 
@@ -308,7 +312,7 @@ def _nnzero_groups_matrix(data: np.ndarray, y: List, margin: int) -> np.ndarray:
 
 
 def compute_ustat(
-    data: np.ndarray, xr: np.ndarray, y: List, group_size: np.ndarray
+    data: csr_matrix, xr: np.ndarray, y: List, group_size: np.ndarray
 ) -> np.ndarray:
     """
     Arguments:
@@ -320,14 +324,25 @@ def compute_ustat(
     Returns:
     ustat -- numpy array
     """
-    m = get_margin(xr, y)
+    m = get_margin(data, y)
 
     if isspmatrix_csr(data):
-        grs = sum_groups(csr_matrix(xr), y, m)
-        nn = nnzero_groups(csr_matrix(xr), y, m)
+        data_array = data.toarray()
+        i, p, _ = _get_sparse_matrix_vectors(data_array)
+
+        ncol = data_array.shape[1]
+        nrow = data_array.shape[0]
+        ngroups = len(np.unique(y))
+
+        if m == 1:
+            grs = cpp_sum_groups_sparse_t(xr, p, i, ncol, nrow, y, ngroups)
+            nn = cpp_nnzero_groups_sparse_t(p, i, ncol, nrow, y, ngroups)
+        elif m == 2:
+            grs = cpp_sum_groups_sparse(xr, p, i, ncol, y, ngroups)
+            nn = cpp_nnzero_groups_sparse(p, i, ncol, y, ngroups)
+
         gnz = (group_size - nn.T).T
-        _, p, _ = _get_sparse_matrix_vectors(xr)
-        zero_ranks = (xr.shape[0] - np.diff(p) + 1) / 2
+        zero_ranks = (nrow - np.diff(p) + 1) / 2
         ustat_t = (gnz * zero_ranks).T + grs.T - group_size * (group_size + 1) / 2
         ustat = ustat_t.T
 
