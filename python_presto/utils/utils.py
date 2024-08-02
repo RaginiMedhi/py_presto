@@ -36,8 +36,11 @@ def encode_groups(y: pd.Series) -> Tuple[list, dict]:
     group_labels, _ = pd.factorize(y, use_na_sentinel=True, sort=True)
     groups_id = dict(zip(group_labels, y.tolist()))
 
-    group_labels = [np.nan if x == -1 else x for x in group_labels]
-    del groups_id[-1]
+    na_val = -1 in groups_id.keys()
+
+    if na_val:
+        group_labels = [np.nan if x == -1 else x for x in group_labels]
+        del groups_id[-1]
 
     groups_id = dict(sorted(groups_id.items()))
 
@@ -324,7 +327,6 @@ def compute_ustat(
     Returns:
     ustat -- numpy array
     """
-    m = get_margin(data, y)
 
     if isspmatrix_csr(data):
         data_array = data.toarray()
@@ -333,6 +335,8 @@ def compute_ustat(
         ncol = data_array.shape[1]
         nrow = data_array.shape[0]
         ngroups = len(np.unique(y))
+
+        m = get_margin(data, y)
 
         if m == 1:
             grs = cpp_sum_groups_sparse_t(xr, p, i, ncol, nrow, y, ngroups)
@@ -347,6 +351,7 @@ def compute_ustat(
         ustat = ustat_t.T
 
     elif isinstance(data, np.ndarray):
+        m = get_margin(xr, y)
         grs = sum_groups(xr, y, m)
         ustat = (grs.T - group_size * (group_size + 1) / 2).T
 
@@ -403,7 +408,7 @@ def tidy_results(
     """
     array_flat = {}
     for key, value in res_list.items():
-        array_flat[key] = value.flatten()
+        array_flat[key] = value.flatten("F")
     res = pd.DataFrame(array_flat)
 
     res["feature"] = np.tile(features, len(group_types))

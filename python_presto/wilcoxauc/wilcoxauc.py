@@ -86,11 +86,11 @@ def py_presto_wilcoxauc(
     n1n2 = group_size * (data.shape[1] - group_size)
 
     if isspmatrix_csr(data):
-        xt = csr_matrix(csr_matrix(data).transpose())
+        xt = csr_matrix(csr_matrix(data.copy()).transpose())
         rank_res = rank_matrix(xt)
         Xr = rank_res["ranked_data"]
     elif isinstance(data, np.ndarray):
-        rank_res = rank_matrix(data)
+        rank_res = rank_matrix(data.copy())
         Xr = rank_res["ranked_data"]
         xt = data.copy()
 
@@ -103,12 +103,6 @@ def py_presto_wilcoxauc(
     pval = compute_pval(ustat, ties, length, n1n2)
 
     fdr = np.apply_along_axis(adjust_pvalues, axis=0, arr=pval)
-
-    if isinstance(data, pd.DataFrame):
-        data = data.to_numpy(dtype="float")
-
-    elif isspmatrix_csr(data):
-        data = csr_matrix(data)
 
     m = get_margin(data, y)
 
