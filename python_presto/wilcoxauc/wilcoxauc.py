@@ -21,7 +21,7 @@ from python_presto.utils import *
 
 
 def py_presto_wilcoxauc(
-    data: np.ndarray,
+    data: csr_matrix | np.ndarray,
     y: List,
     features: np.ndarray,
     groups_id: dict,
